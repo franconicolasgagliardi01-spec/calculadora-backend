@@ -1,3 +1,4 @@
+#Comentario de prueba
 """
 Persistencia OPCIONAL del historial de operaciones.
 
@@ -41,8 +42,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 # persistencia disponible.
 _pool: Any = None
 
-
-# La tabla se crea sola al arrancar si no existe.
+# La tabla se crea solo al arrancar si no existe.
 #
 # Para un proyecto de esta escala esto alcanza y sobra. Cuando el esquema
 # empiece a cambiar (agregar una columna, renombrar otra) esto se queda corto
