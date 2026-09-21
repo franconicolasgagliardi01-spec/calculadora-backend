@@ -387,6 +387,62 @@ def test_si_la_base_se_cae_en_caliente_el_historial_da_503_y_no_500(monkeypatch)
     assert "detail" in respuesta.json()
 
 
+# ---------------------------------------------------------------------------
+# Factorial — operacion unaria, endpoint propio
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "n, esperado",
+    [(0, 1), (1, 1), (5, 120), (10, 3628800)],
+)
+def test_factorial_calcula_correctamente(n, esperado):
+    respuesta = client.post("/api/factorial", json={"n": n})
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert cuerpo["resultado"] == esperado
+    assert cuerpo["n"] == n
+    assert cuerpo["simbolo"] == "!"
+    assert cuerpo["expresion"] == f"{n}! = {esperado}"
+
+
+def test_factorial_negativo_devuelve_400():
+    respuesta = client.post("/api/factorial", json={"n": -3})
+
+    assert respuesta.status_code == 400
+
+
+def test_factorial_decimal_devuelve_400():
+    respuesta = client.post("/api/factorial", json={"n": 4.5})
+
+    assert respuesta.status_code == 400
+
+
+@pytest.mark.parametrize("n", [171, 1000])
+def test_factorial_fuera_de_rango_devuelve_400(n):
+    respuesta = client.post("/api/factorial", json={"n": n})
+
+    assert respuesta.status_code == 400
+    assert "rango" in respuesta.json()["detail"].lower()
+
+
+def test_factorial_no_finito_devuelve_422():
+    respuesta = client.post(
+        "/api/factorial",
+        content='{"n": "inf"}',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert respuesta.status_code == 422
+
+
+def test_factorial_sin_campo_devuelve_422():
+    respuesta = client.post("/api/factorial", json={})
+
+    assert respuesta.status_code == 422
+
+
 @pytest.mark.parametrize("limite", [0, -5, 101, 999999999])
 def test_el_historial_rechaza_limites_fuera_de_rango(limite, monkeypatch):
     # Sin tope, alguien pide limite=999999999 y se lleva puesta la memoria del
