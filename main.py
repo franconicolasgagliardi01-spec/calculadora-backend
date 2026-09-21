@@ -200,7 +200,7 @@ app.add_middleware(
 # rechaza solo todo lo que no encaje, con un 422 y un mensaje explicando que
 # campo esta mal.
 
-Operacion = Literal["suma", "resta", "multiplicacion", "division", "potencia", "porcentaje"]
+Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "potencia", "porcentaje"]
 
 # Tabla unica: cada operacion sabe su simbolo y como se calcula.
 # Un solo lugar para agregar una operacion nueva -> un solo lugar donde
@@ -215,6 +215,7 @@ OPERACIONES: dict[str, tuple[str, Callable[[float, float], float]]] = {
     "resta": ("-", lambda a, b: a - b),
     "multiplicacion": ("*", lambda a, b: a * b),
     "division": ("/", lambda a, b: a / b),
+    "modulo": ("%", lambda a, b: a % b),
     # a elevado a la b. Como el resto de la tabla, toma dos operandos.
     "potencia": ("**", lambda a, b: a**b),
     # a por ciento de b. Ej: 20 % de 50 = 10.
@@ -314,9 +315,9 @@ def calcular(datos: OperacionRequest) -> OperacionResponse:
     """
     simbolo, calcular_fn = OPERACIONES[datos.operacion]
 
-    # Regla de negocio 1: division por cero. Pydantic no puede validarla sola
-    # porque depende de la COMBINACION de dos campos, no de uno solo.
-    if datos.operacion == "division" and datos.b == 0:
+    # Regla de negocio 1: division y modulo por cero. Pydantic no puede
+    # validarla sola porque depende de la COMBINACION de dos campos, no de uno.
+    if datos.operacion in ("division", "modulo") and datos.b == 0:
         # 400 = "vos me mandaste algo que no puedo procesar".
         # No es un 500: el servidor esta perfecto, el pedido es el invalido.
         raise HTTPException(status_code=400, detail="No se puede dividir por cero.")
