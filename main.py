@@ -200,7 +200,7 @@ app.add_middleware(
 # rechaza solo todo lo que no encaje, con un 422 y un mensaje explicando que
 # campo esta mal.
 
-Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "potencia", "porcentaje"]
+Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "potencia", "porcentaje", "logaritmo"]
 
 # Tabla unica: cada operacion sabe su simbolo y como se calcula.
 # Un solo lugar para agregar una operacion nueva -> un solo lugar donde
@@ -220,6 +220,8 @@ OPERACIONES: dict[str, tuple[str, Callable[[float, float], float]]] = {
     "potencia": ("**", lambda a, b: a**b),
     # a por ciento de b. Ej: 20 % de 50 = 10.
     "porcentaje": ("%", lambda a, b: a * b / 100),
+    # logaritmo en base arbitraria. Toma base (a) y argumento (b).
+    "logaritmo": ("log", lambda base, x: math.log(x, base)),
 }
 
 
@@ -335,6 +337,22 @@ def calcular(datos: OperacionRequest) -> OperacionResponse:
             raise HTTPException(
                 status_code=400,
                 detail="No se puede elevar un numero negativo a un exponente fraccionario.",
+            )
+
+    # Regla de negocio 2: el logaritmo tiene restricciones de dominio.
+    # La base debe ser > 0 y ≠ 1, el argumento debe ser > 0.
+    # math.log no levanta excepción limpia para estos casos,
+    # así que validamos antes de llamar a la función.
+    if datos.operacion == "logaritmo":
+        if datos.a <= 0 or datos.a == 1:
+            raise HTTPException(
+                status_code=400,
+                detail="La base debe ser mayor a 0 y distinta de 1.",
+            )
+        if datos.b <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="El argumento debe ser mayor a 0.",
             )
 
     # Ojo: a diferencia de `*`, `**` entre floats LANZA OverflowError en vez de
