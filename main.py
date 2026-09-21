@@ -200,11 +200,11 @@ app.add_middleware(
 # rechaza solo todo lo que no encaje, con un 422 y un mensaje explicando que
 # campo esta mal.
 
-Operacion = Literal["suma", "resta", "multiplicacion", "division"]
+Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "potencia", "porcentaje", "logaritmo"]
 
 # Tabla unica: cada operacion sabe su simbolo y como se calcula.
 # Un solo lugar para agregar una operacion nueva -> un solo lugar donde
-# equivocarse. Si manana querés potencia, agregas UNA linea aca.
+# equivocarse. Si manana querés raiz, agregas UNA linea aca.
 # El tipo de cada lambda es Callable[[float, float], float]: "funcion que toma
 # dos floats y devuelve un float". OJO: `callable` en minuscula es OTRA cosa —
 # es la funcion built-in que pregunta si algo se puede llamar. Usarla como
@@ -215,6 +215,13 @@ OPERACIONES: dict[str, tuple[str, Callable[[float, float], float]]] = {
     "resta": ("-", lambda a, b: a - b),
     "multiplicacion": ("*", lambda a, b: a * b),
     "division": ("/", lambda a, b: a / b),
+    "modulo": ("%", lambda a, b: a % b),
+    # a elevado a la b. Como el resto de la tabla, toma dos operandos.
+    "potencia": ("**", lambda a, b: a**b),
+    # a por ciento de b. Ej: 20 % de 50 = 10.
+    "porcentaje": ("%", lambda a, b: a * b / 100),
+    # logaritmo en base arbitraria. Toma base (a) y argumento (b).
+    "logaritmo": ("log", lambda base, x: math.log(x, base)),
 }
 
 
@@ -333,14 +340,50 @@ def calcular(datos: OperacionRequest) -> OperacionResponse:
     """
     simbolo, calcular_fn = OPERACIONES[datos.operacion]
 
-    # Regla de negocio 1: division por cero. Pydantic no puede validarla sola
-    # porque depende de la COMBINACION de dos campos, no de uno solo.
-    if datos.operacion == "division" and datos.b == 0:
+    # Regla de negocio 1: division y modulo por cero. Pydantic no puede
+    # validarla sola porque depende de la COMBINACION de dos campos, no de uno.
+    if datos.operacion in ("division", "modulo") and datos.b == 0:
         # 400 = "vos me mandaste algo que no puedo procesar".
         # No es un 500: el servidor esta perfecto, el pedido es el invalido.
         raise HTTPException(status_code=400, detail="No se puede dividir por cero.")
 
-    resultado = calcular_fn(datos.a, datos.b)
+    # Regla de negocio 1b: casos donde la potencia no tiene resultado real.
+    # En Python, 0 ** negativo lanza ZeroDivisionError, y una base negativa con
+    # exponente fraccionario devuelve un numero COMPLEJO, que no existe en JSON.
+    # Las dos cosas dependen de la combinacion de a y b, asi que se validan aca.
+    if datos.operacion == "potencia":
+        if datos.a == 0 and datos.b < 0:
+            raise HTTPException(
+                status_code=400, detail="No se puede elevar cero a un exponente negativo."
+            )
+        if datos.a < 0 and not datos.b.is_integer():
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede elevar un numero negativo a un exponente fraccionario.",
+            )
+
+    # Regla de negocio 2: el logaritmo tiene restricciones de dominio.
+    # La base debe ser > 0 y ≠ 1, el argumento debe ser > 0.
+    # math.log no levanta excepción limpia para estos casos,
+    # así que validamos antes de llamar a la función.
+    if datos.operacion == "logaritmo":
+        if datos.a <= 0 or datos.a == 1:
+            raise HTTPException(
+                status_code=400,
+                detail="La base debe ser mayor a 0 y distinta de 1.",
+            )
+        if datos.b <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="El argumento debe ser mayor a 0.",
+            )
+
+    # Ojo: a diferencia de `*`, `**` entre floats LANZA OverflowError en vez de
+    # devolver infinito. Lo traducimos al mismo 400 de la regla 2.
+    try:
+        resultado = calcular_fn(datos.a, datos.b)
+    except OverflowError:
+        resultado = math.inf
 
     # Regla de negocio 2: el resultado tiene que entrar en un float.
     # Los dos operandos pueden ser finitos y perfectamente validos, y aun asi
