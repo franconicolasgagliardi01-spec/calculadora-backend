@@ -270,6 +270,29 @@ class OperacionResponse(BaseModel):
     expresion: str
 
 
+class FactorialRequest(BaseModel):
+    """Entrada del factorial. Se tipa como float para detectar decimales."""
+
+    n: float = Field(..., description="Numero del que calcular el factorial")
+
+    @field_validator("n")
+    @classmethod
+    def debe_ser_finito(cls, valor: float) -> float:
+        if not math.isfinite(valor):
+            raise ValueError("debe ser un numero finito (ni infinito ni NaN)")
+        return valor
+
+
+class FactorialResponse(BaseModel):
+    """Respuesta del factorial."""
+
+    n: int
+    operacion: str
+    simbolo: str
+    resultado: int
+    expresion: str
+
+
 class ItemHistorial(BaseModel):
     """Una fila del historial, tal como sale de la base."""
 
@@ -405,6 +428,64 @@ def calcular(datos: OperacionRequest) -> OperacionResponse:
         b=datos.b,
         operacion=datos.operacion,
         simbolo=simbolo,
+        resultado=resultado,
+        expresion=expresion,
+    )
+
+
+@app.post("/api/factorial", response_model=FactorialResponse, tags=["calculadora"])
+def factorial(datos: FactorialRequest) -> FactorialResponse:
+    """
+    Factorial de un entero 0 <= n <= 170.
+
+    Es unaria, por eso NO usa OperacionRequest (que exige a y b) ni la tabla
+    OPERACIONES (binaria). Endpoint propio, mismas reglas de error: 400 para
+    negocio, 422 de Pydantic para tipos.
+    """
+    # n llega como float para poder rechazar decimales con mensaje claro.
+    if not float(datos.n).is_integer():
+        raise HTTPException(
+            status_code=400,
+            detail="El factorial solo esta definido para numeros enteros.",
+        )
+
+    n_int = int(datos.n)
+
+    if n_int < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El factorial no esta definido para numeros negativos.",
+        )
+
+    # 170! ~= 7e306 entra en float/JSON; 171! desborda a infinito (no existe
+    # en JSON) y numeros mas grandes son un vector de DoS por entero gigante.
+    if n_int > 170:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "El resultado quedo fuera del rango que puede representar la "
+                "computadora (mas o menos 1.8e308). Probá con numeros mas chicos."
+            ),
+        )
+
+    resultado = math.factorial(n_int)
+    expresion = f"{n_int}! = {resultado}"
+
+    # La tabla historial exige a y b NOT NULL: b=0 es dummy documentado para
+    # no migrar el esquema. El guardado nunca puede tumbar la cuenta.
+    db.guardar(
+        a=float(n_int),
+        b=0,
+        operacion="factorial",
+        simbolo="!",
+        resultado=float(resultado),
+        expresion=expresion,
+    )
+
+    return FactorialResponse(
+        n=n_int,
+        operacion="factorial",
+        simbolo="!",
         resultado=resultado,
         expresion=expresion,
     )
