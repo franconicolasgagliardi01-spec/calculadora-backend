@@ -35,6 +35,11 @@ client = TestClient(app)
         ("multiplicacion", 3, 0, 0),
         ("division", 10, 4, 2.5),
         ("division", -9, 3, -3),
+        ("potencia", 2, 3, 8),
+        ("potencia", 5, 0, 1),
+        ("potencia", 2, -2, 0.25),
+        ("potencia", 9, 0.5, 3),
+        ("potencia", -2, 3, -8),
     ],
 )
 def test_calcula_correctamente(operacion, a, b, esperado):
@@ -63,9 +68,37 @@ def test_division_por_cero_devuelve_400_y_no_revienta():
     assert "cero" in respuesta.json()["detail"].lower()
 
 
+def test_potencia_expresion_y_simbolo():
+    respuesta = client.post("/api/calcular", json={"a": 2, "b": 10, "operacion": "potencia"})
+
+    cuerpo = respuesta.json()
+    assert cuerpo["expresion"] == "2.0 ** 10.0 = 1024.0"
+    assert cuerpo["simbolo"] == "**"
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        (0, -1),      # 0 ** negativo: division por cero encubierta
+        (-8, 0.5),    # base negativa con exponente fraccionario: resultado complejo
+    ],
+)
+def test_potencia_sin_resultado_real_devuelve_400(a, b):
+    respuesta = client.post("/api/calcular", json={"a": a, "b": b, "operacion": "potencia"})
+
+    assert respuesta.status_code == 400
+
+
+def test_potencia_que_desborda_devuelve_400_no_500():
+    respuesta = client.post("/api/calcular", json={"a": 10, "b": 400, "operacion": "potencia"})
+
+    assert respuesta.status_code == 400
+    assert "rango" in respuesta.json()["detail"].lower()
+
+
 def test_operacion_desconocida_devuelve_422():
     # 422 lo genera Pydantic solo, porque el campo esta tipado como Literal.
-    respuesta = client.post("/api/calcular", json={"a": 1, "b": 2, "operacion": "potencia"})
+    respuesta = client.post("/api/calcular", json={"a": 1, "b": 2, "operacion": "raiz"})
 
     assert respuesta.status_code == 422
 
