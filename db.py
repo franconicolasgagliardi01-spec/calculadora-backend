@@ -1,4 +1,5 @@
 #Comentario de prueba
+#Segundo comentario de prueba
 """
 Persistencia OPCIONAL del historial de operaciones.
 
