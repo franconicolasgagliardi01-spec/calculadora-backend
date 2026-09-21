@@ -35,6 +35,9 @@ client = TestClient(app)
         ("multiplicacion", 3, 0, 0),
         ("division", 10, 4, 2.5),
         ("division", -9, 3, -3),
+        ("modulo", 10, 3, 1),
+        ("modulo", 8, 3, 2),
+        ("modulo", -9, 4, 3),
         ("potencia", 2, 3, 8),
         ("potencia", 5, 0, 1),
         ("potencia", 2, -2, 0.25),
@@ -63,6 +66,13 @@ def test_la_respuesta_incluye_la_expresion_legible():
 
 def test_division_por_cero_devuelve_400_y_no_revienta():
     respuesta = client.post("/api/calcular", json={"a": 5, "b": 0, "operacion": "division"})
+
+    assert respuesta.status_code == 400
+    assert "cero" in respuesta.json()["detail"].lower()
+
+
+def test_modulo_por_cero_devuelve_400_y_no_revienta():
+    respuesta = client.post("/api/calcular", json={"a": 5, "b": 0, "operacion": "modulo"})
 
     assert respuesta.status_code == 400
     assert "cero" in respuesta.json()["detail"].lower()
