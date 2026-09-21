@@ -200,7 +200,7 @@ app.add_middleware(
 # rechaza solo todo lo que no encaje, con un 422 y un mensaje explicando que
 # campo esta mal.
 
-Operacion = Literal["suma", "resta", "multiplicacion", "division", "potencia"]
+Operacion = Literal["suma", "resta", "multiplicacion", "division", "potencia", "porcentaje"]
 
 # Tabla unica: cada operacion sabe su simbolo y como se calcula.
 # Un solo lugar para agregar una operacion nueva -> un solo lugar donde
@@ -217,6 +217,8 @@ OPERACIONES: dict[str, tuple[str, Callable[[float, float], float]]] = {
     "division": ("/", lambda a, b: a / b),
     # a elevado a la b. Como el resto de la tabla, toma dos operandos.
     "potencia": ("**", lambda a, b: a**b),
+    # a por ciento de b. Ej: 20 % de 50 = 10.
+    "porcentaje": ("%", lambda a, b: a * b / 100),
 }
 
 

@@ -40,6 +40,9 @@ client = TestClient(app)
         ("potencia", 2, -2, 0.25),
         ("potencia", 9, 0.5, 3),
         ("potencia", -2, 3, -8),
+        ("porcentaje", 20, 50, 10),
+        ("porcentaje", 50, 200, 100),
+        ("porcentaje", 0, 100, 0),
     ],
 )
 def test_calcula_correctamente(operacion, a, b, esperado):
@@ -75,6 +78,12 @@ def test_potencia_expresion_y_simbolo():
     assert cuerpo["expresion"] == "2.0 ** 10.0 = 1024.0"
     assert cuerpo["simbolo"] == "**"
 
+def test_porcentaje_expresion_y_simbolo():
+    respuesta = client.post("/api/calcular", json={"a": 20, "b": 50, "operacion": "porcentaje"})
+
+    cuerpo = respuesta.json()
+    assert cuerpo["expresion"] == "20.0 % 50.0 = 10.0"
+    assert cuerpo["simbolo"] == "%"
 
 @pytest.mark.parametrize(
     "a, b",
