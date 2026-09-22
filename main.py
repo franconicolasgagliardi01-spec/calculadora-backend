@@ -200,7 +200,7 @@ app.add_middleware(
 # rechaza solo todo lo que no encaje, con un 422 y un mensaje explicando que
 # campo esta mal.
 
-Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "potencia", "porcentaje", "logaritmo"]
+Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "potencia", "porcentaje", "logaritmo", "raiz"]
 
 # Tabla unica: cada operacion sabe su simbolo y como se calcula.
 # Un solo lugar para agregar una operacion nueva -> un solo lugar donde
@@ -210,6 +210,21 @@ Operacion = Literal["suma", "resta", "multiplicacion", "division", "modulo", "po
 # es la funcion built-in que pregunta si algo se puede llamar. Usarla como
 # anotacion no rompe en runtime (Python no chequea tipos), pero mypy la rechaza
 # y quien lea el codigo se confunde.
+def raiz_general(a: float, b: float) -> float:
+    """
+    Raiz b-esima de a. a es el radicando, b el indice.
+
+    Se calcula como a ** (1 / b), pero con un atajo para el radicando
+    negativo: Python devuelve un numero COMPLEJO para la potencia de un
+    negativo, y los complejos no existen en JSON. Para un indice entero
+    impar la raiz real existe: -27 ** (1/3) = -3. La extraemos calculando
+    con el valor absoluto y negando el resultado.
+    """
+    if a < 0:
+        return -abs(a) ** (1 / b)
+    return a ** (1 / b)
+
+
 OPERACIONES: dict[str, tuple[str, Callable[[float, float], float]]] = {
     "suma": ("+", lambda a, b: a + b),
     "resta": ("-", lambda a, b: a - b),
@@ -222,6 +237,8 @@ OPERACIONES: dict[str, tuple[str, Callable[[float, float], float]]] = {
     "porcentaje": ("%", lambda a, b: a * b / 100),
     # logaritmo en base arbitraria. Toma base (a) y argumento (b).
     "logaritmo": ("log", lambda base, x: math.log(x, base)),
+    # raiz b-esima de a. a es el radicando, b el indice.
+    "raiz": ("√", raiz_general),
 }
 
 
@@ -376,6 +393,33 @@ def calcular(datos: OperacionRequest) -> OperacionResponse:
             raise HTTPException(
                 status_code=400,
                 detail="El argumento debe ser mayor a 0.",
+            )
+
+    # Regla de negocio 3: la raiz. a es el radicando, b el indice, y el
+    # resultado es a ** (1/b). Tres casos sin resultado real o imposibles:
+    #   - indice 0: 1/0 no existe (division por cero encubierta).
+    #   - radicando 0 con indice negativo: 0 elevado a negativo da ZeroDivisionError.
+    #   - radicando negativo con indice par o fraccionario: el resultado es un
+    #     numero COMPLEJO, que no existe en JSON. Solo el indice entero impar
+    #     tiene raiz real (y ese caso lo resuelve raiz_general).
+    if datos.operacion == "raiz":
+        if datos.b == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="El indice de la raiz no puede ser 0.",
+            )
+        if datos.a == 0 and datos.b < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede calcular la raiz de 0 con un indice negativo.",
+            )
+        if datos.a < 0 and not (datos.b.is_integer() and int(datos.b) % 2 == 1):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La raiz de un numero negativo solo existe si el indice "
+                    "es un entero impar."
+                ),
             )
 
     # Ojo: a diferencia de `*`, `**` entre floats LANZA OverflowError en vez de
