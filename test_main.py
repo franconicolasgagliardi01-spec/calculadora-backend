@@ -108,6 +108,54 @@ def test_potencia_sin_resultado_real_devuelve_400(a, b):
     assert respuesta.status_code == 400
 
 
+# ---------------------------------------------------------------------------
+# Raiz — primer valor es el radicando, segundo es el indice; a ** (1/b)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "a, b, esperado",
+    [
+        (8, 3, 2),      # raiz cubica de 8
+        (16, 2, 4),     # raiz cuadrada de 16
+        (27, 3, 3),     # raiz cubica de 27
+        (4, 0.5, 16),   # indice fraccionario: 4^(1/0.5) = 4^2
+        (8, 1 / 3, 512),  # indice fraccionario: 8^(1/(1/3)) = 8^3
+        (-8, 3, -2),    # radicando negativo con indice entero impar
+        (-32, 5, -2),   # idem, otro caso
+        (0, 5, 0),      # raiz de 0
+        (1, 100, 1),    # raiz de 1
+    ],
+)
+def test_raiz_calcula_correctamente(a, b, esperado):
+    respuesta = client.post("/api/calcular", json={"a": a, "b": b, "operacion": "raiz"})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["resultado"] == pytest.approx(esperado)
+
+
+def test_raiz_expresion_y_simbolo():
+    respuesta = client.post("/api/calcular", json={"a": 27, "b": 3, "operacion": "raiz"})
+
+    cuerpo = respuesta.json()
+    assert cuerpo["expresion"] == "27.0 √ 3.0 = 3.0"
+    assert cuerpo["simbolo"] == "√"
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        (5, 0),     # indice cero: 1/0 no existe
+        (0, -1),    # raiz de 0 con indice negativo: 0 elevado a negativo
+        (-16, 2),   # radicando negativo con indice par: complejo
+        (-8, 0.5),  # radicando negativo con indice fraccionario: complejo
+    ],
+)
+def test_raiz_sin_resultado_real_devuelve_400(a, b):
+    respuesta = client.post("/api/calcular", json={"a": a, "b": b, "operacion": "raiz"})
+
+    assert respuesta.status_code == 400
+
+
 def test_potencia_que_desborda_devuelve_400_no_500():
     respuesta = client.post("/api/calcular", json={"a": 10, "b": 400, "operacion": "potencia"})
 
@@ -117,7 +165,7 @@ def test_potencia_que_desborda_devuelve_400_no_500():
 
 def test_operacion_desconocida_devuelve_422():
     # 422 lo genera Pydantic solo, porque el campo esta tipado como Literal.
-    respuesta = client.post("/api/calcular", json={"a": 1, "b": 2, "operacion": "raiz"})
+    respuesta = client.post("/api/calcular", json={"a": 1, "b": 2, "operacion": "seno"})
 
     assert respuesta.status_code == 422
 
